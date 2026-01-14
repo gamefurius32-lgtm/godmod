@@ -6,7 +6,7 @@ source /venv/main/bin/activate
 WORKSPACE=${WORKSPACE:-/workspace}
 COMFYUI_DIR=${WORKSPACE}/ComfyUI
 
-echo "=== Vast.ai ComfyUI provisioning (WAN 2.2 clean template) ==="
+echo "=== Vast.ai ComfyUI provisioning (WAN 2.2 REAL WORKING TEMPLATE) ==="
 
 # ─────────────────────────────────────────────
 # 1. Clone ComfyUI
@@ -25,81 +25,66 @@ pip install --no-cache-dir -r requirements.txt
 # ─────────────────────────────────────────────
 # 3. Custom nodes
 # ─────────────────────────────────────────────
-NODES=(
-    "https://github.com/ltdrdata/ComfyUI-Manager"
-)
-
 mkdir -p custom_nodes
 
-for repo in "${NODES[@]}"; do
-    dir="${repo##*/}"
-    path="custom_nodes/${dir}"
+if [[ ! -d "custom_nodes/ComfyUI-Manager" ]]; then
+    git clone https://github.com/ltdrdata/ComfyUI-Manager custom_nodes/ComfyUI-Manager
+else
+    (cd custom_nodes/ComfyUI-Manager && git pull)
+fi
 
-    if [[ -d "$path" ]]; then
-        (cd "$path" && git pull)
-    else
-        git clone "$repo" "$path" --recursive
-    fi
-
-    [[ -f "$path/requirements.txt" ]] && pip install --no-cache-dir -r "$path/requirements.txt"
-done
+pip install --no-cache-dir -r custom_nodes/ComfyUI-Manager/requirements.txt || true
 
 # ─────────────────────────────────────────────
-# 4. MODELS
-# ─────────────────────────────────────────────
-DIFFUSION_MODELS=(
-    "wan2.2_animate_14B_bf16.safetensors"
-    "wan2.2_t2v_low_noise_14B_fp16.safetensors"
-)
-
-LORA_MODELS=(
-    "wan2.2_animate_14B_relight_lora_bf16.safetensors"
-    "i2v_lightx2v_low_noise_model.safetensors"
-)
-
-CLIP_VISION_MODELS=(
-    "clip_vision_h.safetensors"
-)
-
-TEXT_ENCODER_MODELS=(
-    "umt5_xxl_fp8_e4m3fn_scaled.safetensors"
-)
-
-VAE_MODELS=(
-    "wan_2.1_vae.safetensors"
-)
-
-DETECTION_MODELS=(
-    "vitpose_h_wholebody_model.onnx"
-    "yolov10m.onnx"
-)
-
-# ─────────────────────────────────────────────
-# 5. Download helper
+# 4. Download helper (HF SAFE)
 # ─────────────────────────────────────────────
 download() {
     local dir="$1"
-    shift
+    local url="$2"
     mkdir -p "$dir"
-
-    for file in "$@"; do
-        echo "Downloading $file → $dir"
-        wget -nc --content-disposition -P "$dir" "$file"
-    done
+    echo "→ $url"
+    wget -nc --content-disposition "$url" -P "$dir"
 }
 
 # ─────────────────────────────────────────────
-# 6. Download models (correct paths)
+# 5. MODELS (REAL URLS)
 # ─────────────────────────────────────────────
-download "models/diffusion_models" "${DIFFUSION_MODELS[@]}"
-download "models/loras" "${LORA_MODELS[@]}"
-download "models/clip_vision" "${CLIP_VISION_MODELS[@]}"
-download "models/text_encoders" "${TEXT_ENCODER_MODELS[@]}"
-download "models/vae" "${VAE_MODELS[@]}"
-download "models/detection" "${DETECTION_MODELS[@]}"
+
+# Diffusion
+download "models/diffusion_models" \
+"https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/wan2.2_animate_14B_bf16.safetensors"
+
+download "models/diffusion_models" \
+"https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/wan2.2_t2v_low_noise_14B_fp16.safetensors"
+
+# LoRAs
+download "models/loras" \
+"https://huggingface.co/lightx2v/Wan2.2-I2V-A14B-Moe-Distill-Lightx2v/resolve/main/loras/low_noise_model_rank64.safetensors"
+
+download "models/loras" \
+"https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/loras/wan2.2_animate_14B_relight_lora_bf16.safetensors"
+
+# CLIP Vision
+download "models/clip_vision" \
+"https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/clip_vision/clip_vision_h.safetensors"
+
+# Text encoder
+download "models/text_encoders" \
+"https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors"
+
+# VAE
+download "models/vae" \
+"https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors"
+
+# Detection / Pose
+download "models/detection" \
+"https://huggingface.co/Kijai/vitpose_comfy/resolve/ae68f4e542151cebec0995b8469c70b07b8c3df4/onnx/vitpose_h_wholebody_model.onnx"
+
+download "models/detection" \
+"https://huggingface.co/Wan-AI/Wan2.2-Animate-14B/resolve/main/process_checkpoint/det/yolov10m.onnx"
 
 # ─────────────────────────────────────────────
-# 7. Launch
+# 6. Launch
 # ─────────────────────────────────────────────
 echo "=== Starting ComfyUI ==="
 python main.py --listen 0.0.0.0 --port 8188
